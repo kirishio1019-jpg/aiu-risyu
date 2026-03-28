@@ -25,6 +25,10 @@ import {
   getInstitutionById,
   findMatchingRecord,
   convertCredits,
+  searchInstitutions,
+  ALL_REGIONS,
+  REGION_LABELS,
+  type Region,
 } from "@/lib/partner-institutions"
 import { cn } from "@/lib/utils"
 import {
@@ -60,6 +64,160 @@ const EMPTY_FORM = {
   transferNotes: "",
   studyAbroadPhase: "precml" as StudyAbroadPhase,
   transferStatus: "not_applied" as TransferStatus,
+}
+
+// ===== 留学先大学ピッカー（検索・地域フィルタ・ソート対応） =====
+
+function InstitutionPicker({
+  value,
+  onChange,
+  institution,
+}: {
+  value: string
+  onChange: (id: string) => void
+  institution: ReturnType<typeof getInstitutionById>
+}) {
+  const [search, setSearch] = useState("")
+  const [regionFilter, setRegionFilter] = useState<string>("_all")
+  const [sortBy, setSortBy] = useState<"name" | "country" | "region">("region")
+  const [open, setOpen] = useState(false)
+
+  const filtered = (() => {
+    let list = regionFilter === "_all"
+      ? PARTNER_INSTITUTIONS
+      : PARTNER_INSTITUTIONS.filter(i => i.region === regionFilter)
+    if (search.trim()) {
+      list = searchInstitutions(search).filter(i =>
+        regionFilter === "_all" || i.region === regionFilter
+      )
+    }
+    // "other" は常に最後
+    const other = list.filter(i => i.id === "other")
+    const rest = list.filter(i => i.id !== "other")
+    rest.sort((a, b) => {
+      if (sortBy === "name") return a.nameEn.localeCompare(b.nameEn)
+      if (sortBy === "country") return a.country.localeCompare(b.country) || a.nameEn.localeCompare(b.nameEn)
+      // region (default)
+      return a.region.localeCompare(b.region) || a.country.localeCompare(b.country) || a.nameEn.localeCompare(b.nameEn)
+    })
+    return [...rest, ...other]
+  })()
+
+  const selectedLabel = institution
+    ? `${institution.nameEn}`
+    : "留学先大学を選択..."
+
+  return (
+    <Card className="border-primary/20 bg-primary/5">
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <Building2 className="h-5 w-5 text-primary" />
+          <CardTitle className="text-base">留学先大学</CardTitle>
+          <Badge variant="secondary" className="ml-auto text-xs">{PARTNER_INSTITUTIONS.length - 1}校</Badge>
+        </div>
+        <CardDescription className="text-sm">
+          大学を選ぶと、その大学の単位換算ルール・過去の互換歴に基づき自動マッチングされます
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        {/* 現在の選択 + 変更ボタン */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant={institution ? "outline" : "default"}
+            className="w-full max-w-md justify-start text-left font-normal"
+            onClick={() => setOpen(!open)}
+          >
+            <Globe className="mr-2 h-4 w-4 shrink-0" />
+            <span className="truncate">{selectedLabel}</span>
+          </Button>
+          {institution && (
+            <Button variant="ghost" size="sm" className="shrink-0 text-xs" onClick={() => { onChange(""); setOpen(true) }}>変更</Button>
+          )}
+        </div>
+
+        {institution && (
+          <p className="text-xs text-muted-foreground">
+            {institution.country && `${institution.country} ・ `}
+            単位換算: {institution.creditRatio.aiu}:{institution.creditRatio.host}（AIU:留学先）
+            {institution.matchingRecords.length > 0 && ` ・ 互換歴 ${institution.matchingRecords.length}件`}
+          </p>
+        )}
+
+        {/* 展開式検索パネル */}
+        {open && (
+          <div className="rounded-lg border bg-background p-3 flex flex-col gap-2">
+            {/* 検索バー */}
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="大学名・国名で検索..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-9 h-9"
+                autoFocus
+              />
+            </div>
+
+            {/* フィルタ・ソート */}
+            <div className="flex gap-2 flex-wrap">
+              <Select value={regionFilter} onValueChange={setRegionFilter}>
+                <SelectTrigger className="h-8 w-[160px] text-xs">
+                  <SelectValue placeholder="地域" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_all">すべての地域</SelectItem>
+                  {ALL_REGIONS.map(r => (
+                    <SelectItem key={r} value={r}>
+                      {REGION_LABELS[r]} ({PARTNER_INSTITUTIONS.filter(i => i.region === r && i.id !== "other").length})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={sortBy} onValueChange={v => setSortBy(v as typeof sortBy)}>
+                <SelectTrigger className="h-8 w-[130px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="region">地域順</SelectItem>
+                  <SelectItem value="name">名前順</SelectItem>
+                  <SelectItem value="country">国別</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="ml-auto text-xs text-muted-foreground self-center">{filtered.length}件</span>
+            </div>
+
+            {/* 大学リスト */}
+            <div className="max-h-64 overflow-y-auto rounded border divide-y">
+              {filtered.map(i => (
+                <button
+                  key={i.id}
+                  className={cn(
+                    "w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex items-center gap-2",
+                    value === i.id && "bg-primary/10 font-medium"
+                  )}
+                  onClick={() => { onChange(i.id); setOpen(false); setSearch("") }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate">{i.nameEn}</div>
+                    <div className="text-xs text-muted-foreground truncate">{i.name}{i.country && ` ・ ${i.country}`}</div>
+                  </div>
+                  <div className="text-xs text-muted-foreground shrink-0 text-right">
+                    {i.creditRatio.aiu}:{i.creditRatio.host}
+                  </div>
+                  {i.matchingRecords.length > 0 && (
+                    <Badge variant="outline" className="text-[10px] shrink-0">{i.matchingRecords.length}件</Badge>
+                  )}
+                </button>
+              ))}
+              {filtered.length === 0 && (
+                <div className="px-3 py-4 text-sm text-muted-foreground text-center">該当する大学がありません</div>
+              )}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
 }
 
 function getAiuCourseName(code?: string) {
@@ -282,39 +440,12 @@ export function StudyAbroadView({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* 留学先大学選択 */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardHeader className="pb-2">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base">留学先大学</CardTitle>
-          </div>
-          <CardDescription className="text-sm">
-            大学を選ぶと、その大学の単位換算ルール・過去の互換歴に基づき自動マッチングされます
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Select value={hostInstitution || "_none"} onValueChange={v => onHostInstitutionChange(v === "_none" ? "" : v)}>
-            <SelectTrigger className="w-full max-w-md">
-              <SelectValue placeholder="留学先大学を選択" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="_none">選択してください</SelectItem>
-              {PARTNER_INSTITUTIONS.map(i => (
-                <SelectItem key={i.id} value={i.id}>
-                  {i.name}（{i.nameEn}）
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {institution && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              単位換算: {institution.creditRatio.aiu}:{institution.creditRatio.host}（AIU:留学先）
-              {institution.matchingRecords.length > 0 && ` ・ 互換歴 ${institution.matchingRecords.length}件`}
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      {/* 留学先大学選択（検索・地域フィルタ対応） */}
+      <InstitutionPicker
+        value={hostInstitution}
+        onChange={onHostInstitutionChange}
+        institution={institution ?? undefined}
+      />
 
       {/* 2区分タブ: 留学中の授業 + CML変換結果 */}
       <Tabs defaultValue="taking" className="w-full">

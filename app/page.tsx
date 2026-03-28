@@ -21,23 +21,21 @@ import { Menu, Trash2, FileUp, ClipboardPaste } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 const pageTitles: Record<string, string> = {
-  dashboard: "ダッシュボード",
-  history: "履修履歴",
-  requirements: "Graduation Requirements",
-  track: "トラック進捗",
-  abroad: "留学状況",
-  simulator: "AI履修シミュレーター",
-  catalog: "Course Catalog",
+  dashboard: "ホーム",
+  history: "履修記録",
+  requirements: "卒業要件",
+  abroad: "留学・単位互換",
+  simulator: "履修プラン",
+  catalog: "科目カタログ",
 }
 
 const pageDescriptions: Record<string, string> = {
   dashboard: "卒業に向けた進捗状況の概要",
-  history: "これまでに履修した科目の一覧",
-  requirements: "2021 Curriculum requirement details and progress",
-  track: "選択したMajor Trackの進捗",
-  abroad: "留学の完了状況と単位互換",
-  simulator: "卒業要件に基づく最適な履修計画の提案",
-  catalog: "All courses in the 2021 AIU Curriculum (Student Handbook 2024-2025)",
+  history: "過去〜現在の全履修科目を管理",
+  requirements: "卒業に必要な全要件の達成状況",
+  abroad: "留学先選択・科目登録・単位互換管理",
+  simulator: "AI提案と時間割シミュレーション",
+  catalog: "AIU 2021カリキュラム全科目一覧（Student Handbook 2025-2026）",
 }
 
 function processCsvText(text: string): Omit<CourseRecord, "id">[] {
@@ -250,14 +248,18 @@ export default function AcademicDashboard() {
                 onImportCourses={store.importCourses}
               />
             )}
-            {activeTab === "requirements" && <GraduationRequirementsView requirements={requirements} />}
-            {activeTab === "track" && (
-              <TrackProgress
-                requirements={requirements}
-                courses={store.courses}
-                majorTrack={store.majorTrack}
-                onMajorTrackChange={store.setMajorTrack}
-              />
+            {activeTab === "requirements" && (
+              <>
+                <GraduationRequirementsView requirements={requirements} />
+                <div className="mt-6">
+                  <TrackProgress
+                    requirements={requirements}
+                    courses={store.courses}
+                    majorTrack={store.majorTrack}
+                    onMajorTrackChange={store.setMajorTrack}
+                  />
+                </div>
+              </>
             )}
             {activeTab === "abroad" && (
               <StudyAbroadView
