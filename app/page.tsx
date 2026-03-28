@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useMemo, useCallback, useRef, type DragEvent } from "react"
+import { SignIn, SignedIn, SignedOut, useAuth } from "@clerk/nextjs"
+import { GraduationCap } from "lucide-react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { DashboardOverview } from "@/components/dashboard-overview"
 import { CourseHistory } from "@/components/course-history"
@@ -122,16 +124,38 @@ export default function AcademicDashboard() {
     )
   }
 
-  if (store.isFirstRun) {
-    return <SetupWizard store={store} />
-  }
-
   const handleReset = () => {
     store.clearAll()
     setResetDialogOpen(false)
   }
 
   return (
+    <>
+    {/* 未ログイン → サインイン画面を直接表示 */}
+    <SignedOut>
+      <main className="flex min-h-screen flex-col items-center justify-center bg-background gap-6 px-4">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
+            <GraduationCap className="h-6 w-6 text-primary-foreground" />
+          </div>
+          <h1 className="text-xl font-bold text-foreground">AIU 履修管理</h1>
+          <p className="text-sm text-muted-foreground">国際教養大学 卒業要件管理ダッシュボード</p>
+        </div>
+        <SignIn
+          routing="hash"
+          appearance={{
+            elements: {
+              rootBox: "mx-auto",
+              card: "shadow-lg border border-border bg-card",
+            },
+          }}
+        />
+      </main>
+    </SignedOut>
+
+    {/* ログイン済み → アプリ本体 */}
+    <SignedIn>
+    {store.isFirstRun ? <SetupWizard store={store} /> : (
     <div
       className="flex h-screen bg-background"
       onDragEnter={handleGlobalDragEnter}
@@ -312,5 +336,8 @@ export default function AcademicDashboard() {
       </Dialog>
 
     </div>
+    )}
+    </SignedIn>
+    </>
   )
 }
