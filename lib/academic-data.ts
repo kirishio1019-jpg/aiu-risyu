@@ -520,13 +520,13 @@ export const AIU_COURSE_CATALOG: CatalogCourse[] = [
   { code: "MAT340", name: "Topics in Mathematics", credits: 3, category: "Mathematics", track: null, cluster: null },
   { code: "INF260", name: "Information Science", credits: 3, category: "Mathematics", track: null, cluster: null },
 
-  // ─── Natural Sciences (CLA: NS) ─── Min 4 credits (lecture 2 + lab 1)
-  { code: "BIO100", name: "Introduction to Biology", credits: 2, category: "Natural Sciences", track: null, cluster: null },
+  // ─── Natural Sciences (CLA: NS) ─── Min 4 credits (lecture 3 + lab 1)
+  { code: "BIO100", name: "Introduction to Biology", credits: 3, category: "Natural Sciences", track: null, cluster: null },
   { code: "BIO105", name: "Biology Laboratory", credits: 1, category: "Natural Sciences", track: null, cluster: null },
   { code: "BIO205", name: "Science Research Project", credits: 3, category: "Natural Sciences", track: null, cluster: null },
-  { code: "CHM100", name: "Introduction to Chemistry", credits: 2, category: "Natural Sciences", track: null, cluster: null },
+  { code: "CHM100", name: "Introduction to Chemistry", credits: 3, category: "Natural Sciences", track: null, cluster: null },
   { code: "CHM105", name: "Chemistry Laboratory", credits: 1, category: "Natural Sciences", track: null, cluster: null },
-  { code: "PHY100", name: "Introduction to Physics", credits: 2, category: "Natural Sciences", track: null, cluster: null },
+  { code: "PHY100", name: "Introduction to Physics", credits: 3, category: "Natural Sciences", track: null, cluster: null },
   { code: "PHY105", name: "Physics Laboratory", credits: 1, category: "Natural Sciences", track: null, cluster: null },
 
   // ─── Foreign Languages (CLA: FL) ─── Min 6 credits (同一言語 2レベル以上)

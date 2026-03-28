@@ -316,43 +316,20 @@ export function StudyAbroadView({
         </CardContent>
       </Card>
 
-      {/* 3区分タブ */}
-      <Tabs defaultValue="precml" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="precml">Pre-CML（留学前の予定）</TabsTrigger>
-          <TabsTrigger value="taking">実際に取ってる</TabsTrigger>
-          <TabsTrigger value="cml_converted">CMLで変換された</TabsTrigger>
+      {/* 2区分タブ: 留学中の授業 + CML変換結果 */}
+      <Tabs defaultValue="taking" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="taking">留学中の授業</TabsTrigger>
+          <TabsTrigger value="cml_converted">CML変換結果</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="precml" className="mt-4">
+        <TabsContent value="taking" className="mt-4 flex flex-col gap-4">
           <Card>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-sm font-semibold">Pre-CML — 留学前の計画</CardTitle>
-                  <CardDescription className="text-xs">留学前に計画した科目と互換予想</CardDescription>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => { setActivePhase("precml"); setBulkText(""); setBulkDialogOpen(true) }} className="gap-1.5 text-xs">
-                    <ClipboardPaste className="h-3.5 w-3.5" />一括追加
-                  </Button>
-                  <Button size="sm" onClick={() => openAdd("precml")} className="gap-1.5"><Plus className="h-4 w-4" />追加</Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {precmlCourses.length === 0 ? <EmptyState phase="precml" onAdd={() => openAdd("precml")} /> : <CourseTable list={precmlCourses} phase="precml" />}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="taking" className="mt-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-sm font-semibold">実際に取ってる — 留学中に履修している科目</CardTitle>
-                  <CardDescription className="text-xs">留学先で実際に履修している科目</CardDescription>
+                  <CardTitle className="text-sm font-semibold">留学中に履修している科目</CardTitle>
+                  <CardDescription className="text-xs">留学先で実際に取っている授業を記録します</CardDescription>
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" onClick={() => { setActivePhase("taking"); setBulkText(""); setBulkDialogOpen(true) }} className="gap-1.5 text-xs">
@@ -366,6 +343,60 @@ export function StudyAbroadView({
               {takingCourses.length === 0 ? <EmptyState phase="taking" onAdd={() => openAdd("taking")} /> : <CourseTable list={takingCourses} phase="taking" />}
             </CardContent>
           </Card>
+
+          {/* AI変換予測 */}
+          {takingCourses.length > 0 && (
+            <Card className="border-amber-500/20 bg-amber-500/5">
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-amber-500" />
+                  <CardTitle className="text-sm font-semibold">AIU単位変換予測</CardTitle>
+                </div>
+                <CardDescription className="text-xs">
+                  留学先大学の情報と過去の互換歴に基づく予測です。
+                  <span className="font-semibold text-destructive"> ※ あくまで予測であり、正式な変換結果はCML提出後にAIU事務局が決定します。実際の結果と異なる場合があります。</span>
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[600px]">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="pb-2 text-left text-xs font-medium text-muted-foreground">留学先科目</th>
+                        <th className="pb-2 text-center text-xs font-medium text-muted-foreground">留学先Cr</th>
+                        <th className="pb-2 text-left text-xs font-medium text-muted-foreground">→ AIU互換予測</th>
+                        <th className="pb-2 text-center text-xs font-medium text-muted-foreground">AIU Cr</th>
+                        <th className="pb-2 text-left text-xs font-medium text-muted-foreground">分野</th>
+                        <th className="pb-2 text-left text-xs font-medium text-muted-foreground">信頼度</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {takingCourses.map(course => {
+                        const hasMatch = course.aiuEquivalent && course.aiuEquivalent !== "Elective"
+                        const confidence = hasMatch ? "高" : institution?.matchingRecords?.length ? "中" : "低"
+                        const confColor = confidence === "高" ? "text-success" : confidence === "中" ? "text-amber-500" : "text-muted-foreground"
+                        return (
+                          <tr key={course.id} className="border-b border-border/50 last:border-0">
+                            <td className="py-2 text-sm">{course.name}</td>
+                            <td className="py-2 text-center text-sm text-muted-foreground">{course.foreignCredits ?? course.credits}</td>
+                            <td className="py-2 text-sm text-primary font-medium">{getAiuCourseName(course.aiuEquivalent)}</td>
+                            <td className="py-2 text-center text-sm font-medium">{course.credits}</td>
+                            <td className="py-2"><Badge variant="secondary" className="text-[10px]">{course.category}</Badge></td>
+                            <td className={cn("py-2 text-xs font-medium", confColor)}>{confidence}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-3 text-[10px] text-muted-foreground leading-relaxed">
+                  予測の根拠: 留学先大学の単位換算比率{institution ? `（${institution.creditRatio.aiu}:${institution.creditRatio.host}）` : ""}
+                  {institution?.matchingRecords?.length ? `、過去の互換実績${institution.matchingRecords.length}件` : ""}、科目名の類似度分析。
+                  信頼度「高」= 過去に同じ科目が互換された実績あり。「中」= 類似科目の実績あり。「低」= 実績なし（単位換算比率のみ）。
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="cml_converted" className="mt-4">
@@ -373,8 +404,8 @@ export function StudyAbroadView({
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-sm font-semibold">CMLで変換された — 帰国後確定した互換</CardTitle>
-                  <CardDescription className="text-xs">帰国後CMLを提出して確定した互換結果</CardDescription>
+                  <CardTitle className="text-sm font-semibold">CML変換結果 — 帰国後に確定した互換</CardTitle>
+                  <CardDescription className="text-xs">帰国後CMLを提出して正式に確定した互換結果を記録します</CardDescription>
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" onClick={() => { setActivePhase("cml_converted"); setBulkText(""); setBulkDialogOpen(true) }} className="gap-1.5 text-xs">
@@ -391,19 +422,11 @@ export function StudyAbroadView({
         </TabsContent>
       </Tabs>
 
-      <PreCmlManagement courses={courses} majorTrack={majorTrack} />
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card className="py-4">
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{precmlCourses.length}</div>
-            <p className="text-xs text-muted-foreground">Pre-CML 科目数</p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <Card className="py-4">
           <CardContent>
             <div className="text-2xl font-bold">{takingCourses.length}</div>
-            <p className="text-xs text-muted-foreground">実際に履修中</p>
+            <p className="text-xs text-muted-foreground">留学中の科目数</p>
           </CardContent>
         </Card>
         <Card className="py-4">
