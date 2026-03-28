@@ -10,6 +10,7 @@ import {
 import type { GraduationRequirements, CourseRecord, GradPlanCourse, RequirementGaps, CatalogCourse } from "@/lib/academic-data"
 import { buildGradPlan, gapsFrom, reduceGaps, GAP_LABEL, parseSemesterList, AIU_COURSE_CATALOG } from "@/lib/academic-data"
 import { SchedulePlanner } from "@/components/schedule-planner"
+import { CourseCatalog } from "@/components/course-catalog"
 import { cn } from "@/lib/utils"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -17,7 +18,7 @@ import {
 import { GraduationCap, CheckCircle2, AlertTriangle, TrendingUp, Upload, X, ChevronDown, ChevronUp, CalendarDays, Sparkles, Star, ArrowUpDown } from "lucide-react"
 import { useState, useMemo, useCallback } from "react"
 
-type SimTab = "plan" | "schedule"
+type SimTab = "plan" | "schedule" | "catalog"
 type SortOption = "min" | "wanted" | "code" | "credits" | "fulfills"
 
 interface AISimulatorProps {
@@ -214,7 +215,18 @@ export function AISimulator({ requirements, courses }: AISimulatorProps) {
           )}
         >
           <CalendarDays className="h-3.5 w-3.5" />
-          時間割シミュレーション
+          時間割
+        </button>
+        <button
+          onClick={() => setTab("catalog")}
+          className={cn(
+            "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+            tab === "catalog"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          科目カタログ
         </button>
       </div>
 
@@ -228,6 +240,9 @@ export function AISimulator({ requirements, courses }: AISimulatorProps) {
           semesterScheduleData={semesterScheduleMap}
         />
       )}
+
+      {/* Course catalog tab */}
+      {tab === "catalog" && <CourseCatalog />}
 
       {/* Plan tab header */}
       {tab === "plan" && (

@@ -3,12 +3,22 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import type { GraduationRequirements } from "@/lib/academic-data"
+import type { GraduationRequirements, CourseRecord, TrackType } from "@/lib/academic-data"
+import { ALL_TRACKS } from "@/lib/academic-data"
 import { CheckCircle2, XCircle, GraduationCap, Info } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface GraduationRequirementsViewProps {
   requirements: GraduationRequirements
+  courses?: CourseRecord[]
+  majorTrack?: TrackType
+  onMajorTrackChange?: (track: TrackType) => void
+}
+
+const trackDescriptions: Record<TrackType, string> = {
+  "Global Business": "ビジネス・経済・経営",
+  "Global Studies": "国際関係・政治・社会",
+  "Global Connectivity": "人文×テクノロジー",
 }
 
 function RequirementRow({
@@ -51,7 +61,7 @@ function RequirementRow({
   )
 }
 
-export function GraduationRequirementsView({ requirements }: GraduationRequirementsViewProps) {
+export function GraduationRequirementsView({ requirements, courses, majorTrack: currentTrack, onMajorTrackChange }: GraduationRequirementsViewProps) {
   const {
     totalCredits, cumulativeGPA, studyAbroadGPA, studyAbroad,
     eapCompleted, eapCredits, foundationCredits, coreLiberalArts,
@@ -193,47 +203,85 @@ export function GraduationRequirementsView({ requirements }: GraduationRequireme
         </CardContent>
       </Card>
 
-      {/* Advanced + Capstone */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card className="gap-4 py-5">
-          <CardHeader className="pb-0">
-            <CardTitle className="text-sm font-semibold text-foreground">
-              上級リベラルアーツ
-            </CardTitle>
-            <CardDescription className="text-[11px]">
-              選択した専攻トラックで48単位以上
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
+      {/* Track Selection + Advanced + Capstone */}
+      <Card className="gap-4 py-5">
+        <CardHeader className="pb-0">
+          <CardTitle className="text-base font-semibold text-foreground">
+            専攻領域（Advanced Liberal Arts）
+          </CardTitle>
+          <CardDescription className="text-xs">
+            いずれかの領域を選択し、48単位以上を修得
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {/* Track buttons */}
+          {onMajorTrackChange && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {ALL_TRACKS.map(track => {
+                const isSelected = currentTrack === track
+                return (
+                  <button
+                    key={track}
+                    onClick={() => onMajorTrackChange(track)}
+                    className={cn(
+                      "rounded-lg border px-3 py-2.5 text-left transition-colors",
+                      isSelected
+                        ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                        : "border-border hover:border-primary/40 hover:bg-accent/50"
+                    )}
+                  >
+                    <span className={cn("text-sm font-medium", isSelected ? "text-primary" : "text-foreground")}>
+                      {track}
+                    </span>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{trackDescriptions[track]}</p>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Track progress */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {majorTrack.earned >= majorTrack.required
+                  ? <CheckCircle2 className="h-4 w-4 text-success" />
+                  : <XCircle className="h-4 w-4 text-muted-foreground" />}
+                <span className="text-sm font-medium">{majorTrack.name}</span>
+              </div>
+              <span className="text-xs text-muted-foreground">{majorTrack.earned} / {majorTrack.required} 単位</span>
+            </div>
+            <Progress value={Math.min((majorTrack.earned / majorTrack.required) * 100, 100)} className={cn("h-2", majorTrack.earned >= majorTrack.required && "[&>div]:bg-success")} />
+          </div>
+
+          {/* Track courses list */}
+          {courses && courses.filter(c => c.track === currentTrack).length > 0 && (
+            <div className="rounded-lg border">
+              <div className="divide-y">
+                {courses.filter(c => c.track === currentTrack).map(c => (
+                  <div key={c.id} className="flex items-center gap-3 px-3 py-1.5 text-xs">
+                    <span className="font-mono text-muted-foreground w-14">{c.courseCode}</span>
+                    <span className="flex-1 truncate">{c.name}</span>
+                    <span className="text-muted-foreground">{c.credits}単位</span>
+                    <Badge variant="outline" className="text-[10px]">{c.grade}</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Capstone */}
+          <div className="border-t pt-3">
             <RequirementRow
-              label={majorTrack.name}
-              current={String(majorTrack.earned)}
-              required={String(majorTrack.required)}
-              unit="単位"
-              isMet={majorTrack.earned >= majorTrack.required}
-            />
-          </CardContent>
-        </Card>
-        <Card className="gap-4 py-5">
-          <CardHeader className="pb-0">
-            <CardTitle className="text-sm font-semibold text-foreground">
-              Capstone（AILA IV）
-            </CardTitle>
-            <CardDescription className="text-[11px]">
-              CPS490 または相当のCapstoneセミナー
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            <RequirementRow
-              label="Capstoneセミナー"
+              label="Capstone セミナー（AILA IV: CPS490）"
               current={String(capstone.earned)}
               required={String(capstone.required)}
               unit="単位"
               isMet={capstone.completed}
             />
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

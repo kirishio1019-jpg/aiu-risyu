@@ -5,10 +5,8 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { DashboardOverview } from "@/components/dashboard-overview"
 import { CourseHistory } from "@/components/course-history"
 import { GraduationRequirementsView } from "@/components/graduation-requirements"
-import { TrackProgress } from "@/components/track-progress"
 import { StudyAbroadView } from "@/components/study-abroad"
 import { AISimulator } from "@/components/ai-simulator"
-import { CourseCatalog } from "@/components/course-catalog"
 import { SetupWizard } from "@/components/setup-wizard"
 import { TextPasteImport } from "@/components/text-paste-import"
 import { calculateRequirements, gradeToPoints } from "@/lib/academic-data"
@@ -23,19 +21,17 @@ import { Button } from "@/components/ui/button"
 const pageTitles: Record<string, string> = {
   dashboard: "ホーム",
   history: "履修記録",
-  requirements: "卒業要件",
-  abroad: "留学・単位互換",
+  requirements: "卒業チェック",
   simulator: "履修プラン",
-  catalog: "科目カタログ",
+  abroad: "留学",
 }
 
 const pageDescriptions: Record<string, string> = {
-  dashboard: "卒業に向けた進捗状況の概要",
+  dashboard: "卒業に向けた進捗の全体像",
   history: "過去〜現在の全履修科目を管理",
-  requirements: "卒業に必要な全要件の達成状況",
+  requirements: "卒業に必要な全要件の達成状況・トラック選択",
+  simulator: "AI最短プラン・時間割シミュレーション・科目カタログ",
   abroad: "留学先選択・科目登録・単位互換管理",
-  simulator: "AI提案と時間割シミュレーション",
-  catalog: "AIU 2021カリキュラム全科目一覧（Student Handbook 2025-2026）",
 }
 
 function processCsvText(text: string): Omit<CourseRecord, "id">[] {
@@ -237,6 +233,7 @@ export default function AcademicDashboard() {
                 majorTrack={store.majorTrack}
                 onAddCourse={store.addCourse}
                 onMajorTrackChange={store.setMajorTrack}
+                onNavigate={tab => { setActiveTab(tab); setSidebarOpen(false) }}
               />
             )}
             {activeTab === "history" && (
@@ -249,17 +246,18 @@ export default function AcademicDashboard() {
               />
             )}
             {activeTab === "requirements" && (
-              <>
-                <GraduationRequirementsView requirements={requirements} />
-                <div className="mt-6">
-                  <TrackProgress
-                    requirements={requirements}
-                    courses={store.courses}
-                    majorTrack={store.majorTrack}
-                    onMajorTrackChange={store.setMajorTrack}
-                  />
-                </div>
-              </>
+              <GraduationRequirementsView
+                requirements={requirements}
+                courses={store.courses}
+                majorTrack={store.majorTrack}
+                onMajorTrackChange={store.setMajorTrack}
+              />
+            )}
+            {activeTab === "simulator" && (
+              <AISimulator
+                requirements={requirements}
+                courses={store.courses}
+              />
             )}
             {activeTab === "abroad" && (
               <StudyAbroadView
@@ -273,13 +271,6 @@ export default function AcademicDashboard() {
                 onDeleteCourse={store.deleteCourse}
               />
             )}
-            {activeTab === "simulator" && (
-              <AISimulator
-                requirements={requirements}
-                courses={store.courses}
-              />
-            )}
-            {activeTab === "catalog" && <CourseCatalog />}
           </div>
         </div>
       </main>
