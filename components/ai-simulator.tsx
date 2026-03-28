@@ -8,7 +8,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog"
 import type { GraduationRequirements, CourseRecord, GradPlanCourse, RequirementGaps, CatalogCourse } from "@/lib/academic-data"
-import { buildGradPlan, gapsFrom, reduceGaps, GAP_LABEL, parseSemesterList, AIU_COURSE_CATALOG } from "@/lib/academic-data"
+import { buildGradPlan, gapsFrom, reduceGaps, GAP_LABEL, parseSemesterList, AIU_COURSE_CATALOG, courseFulfills } from "@/lib/academic-data"
 import { SchedulePlanner } from "@/components/schedule-planner"
 import { CourseCatalog } from "@/components/course-catalog"
 import { cn } from "@/lib/utils"
@@ -52,6 +52,7 @@ export function AISimulator({ requirements, courses }: AISimulatorProps) {
   const [wantedCodes, setWantedCodes] = useState<Set<string>>(new Set())
   const [sortOption, setSortOption] = useState<SortOption>("min")
   const [semesterScheduleMap, setSemesterScheduleMap] = useState<Map<string, { day: number; period: number }>>(new Map())
+  const [semesterMultiSlots, setSemesterMultiSlots] = useState<Map<string, { day: number; period: number }[]>>(new Map())
 
   const majorTrack = requirements.majorTrack.name
   const gaps = useMemo(() => gapsFrom(requirements), [requirements])
@@ -117,41 +118,46 @@ export function AISimulator({ requirements, courses }: AISimulatorProps) {
     [plan.courses, sortCourses]
   )
 
+  /** 授業リストテキストから曜日・時限を抽出（複数コマ対応） */
+  const parseScheduleSlots = useCallback((text: string) => {
+    const dayMap: Record<string, number> = {
+      "月": 0, "火": 1, "水": 2, "木": 3, "金": 4,
+      "mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4,
+    }
+    const multiMap = new Map<string, { day: number; period: number }[]>()
+    const singleMap = new Map<string, { day: number; period: number }>()
+
+    for (const line of text.split("\n")) {
+      const codeMatch = line.match(/([A-Z]{2,4}\s?\d{2,4}[A-Z]?)/i)
+      if (!codeMatch) continue
+      const code = codeMatch[1].replace(/\s/g, "").toUpperCase()
+
+      const slots: { day: number; period: number }[] = []
+      const slotRegex = /(月|火|水|木|金|mon|tue|wed|thu|fri)\s*(\d)/gi
+      let match
+      while ((match = slotRegex.exec(line)) !== null) {
+        const day = dayMap[match[1].toLowerCase()]
+        const p = parseInt(match[2]) - 1
+        if (day !== undefined && p >= 0 && p <= 5) slots.push({ day, period: p })
+      }
+
+      if (slots.length > 0) {
+        multiMap.set(code, slots)
+        singleMap.set(code, slots[0]) // backward compat
+      }
+    }
+    return { multiMap, singleMap }
+  }, [])
+
   const handleSemesterImport = () => {
     if (!semesterText.trim()) return
     const parsed = parseSemesterList(semesterText)
     if (parsed.length === 0) return
     setSemesterCatalog(parsed)
 
-    // Extract schedule data (day/period) from the text
-    const dayMap: Record<string, number> = { "月": 0, "火": 1, "水": 2, "木": 3, "金": 4, "Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "M": 0, "T": 1, "W": 2, "R": 3, "F": 4 }
-    const schedMap = new Map<string, { day: number; period: number }>()
-    const lines = semesterText.split("\n")
-    for (const line of lines) {
-      // Try to find course code in the line
-      const codeMatch = line.match(/([A-Z]{2,4}\d{2,4}[A-Z]?)/i)
-      if (!codeMatch) continue
-      const code = codeMatch[1].toUpperCase()
-
-      // Try to find day (月,火,水,木,金 or Mon,Tue,Wed,Thu,Fri or M,T,W,R,F)
-      let day = -1
-      for (const [key, val] of Object.entries(dayMap)) {
-        if (line.includes(key)) { day = val; break }
-      }
-
-      // Try to find period (1-5 or 1限-5限)
-      const periodMatch = line.match(/(\d)[限]?/)
-      let period = -1
-      if (periodMatch) {
-        const p = parseInt(periodMatch[1])
-        if (p >= 1 && p <= 5) period = p - 1
-      }
-
-      if (day >= 0 && period >= 0) {
-        schedMap.set(code, { day, period })
-      }
-    }
-    setSemesterScheduleMap(schedMap)
+    const { multiMap, singleMap } = parseScheduleSlots(semesterText)
+    setSemesterScheduleMap(singleMap)
+    setSemesterMultiSlots(multiMap)
     setSemesterDialogOpen(false)
   }
 
@@ -188,6 +194,71 @@ export function AISimulator({ requirements, courses }: AISimulatorProps) {
     }
     return afterGaps
   }, [wantedCodes, gaps, majorTrack, semesterCatalog])
+
+  // ===== 完璧な履修提案: 卒業要件を満たし、かつスケジュールが重ならない =====
+  const conflictFreePlan = useMemo(() => {
+    if (!semesterCatalog || semesterMultiSlots.size === 0) return null
+
+    type Slot = `${number}-${number}`
+    const usedSlots = new Set<Slot>()
+    const selected: { course: CatalogCourse; slots: Slot[] }[] = []
+    const planGaps = { ...gaps }
+    planGaps.capstone = 0 // capstone is separate
+
+    // Courses with schedule data, not yet taken
+    const available = semesterCatalog
+      .filter(c => !takenCodes.has(c.code))
+      .map(c => {
+        const slots = (semesterMultiSlots.get(c.code) || []).map(
+          s => `${s.day}-${s.period}` as Slot
+        )
+        const specific = courseFulfills(c, planGaps, majorTrack)
+          .filter(f => f !== GAP_LABEL.total).length
+        return { course: c, slots, specific }
+      })
+      .filter(c => c.slots.length > 0) // only courses with schedule info
+
+    // Sort: more specific requirement fulfillment first, then by credits
+    available.sort((a, b) => {
+      if (b.specific !== a.specific) return b.specific - a.specific
+      return b.course.credits - a.course.credits
+    })
+
+    // Greedy: pick courses that fill gaps without conflicts
+    const selectedCodes = new Set<string>()
+
+    // First pass: courses that fill specific requirements
+    for (const item of available) {
+      const fulfills = courseFulfills(item.course, planGaps, majorTrack)
+        .filter(f => f !== GAP_LABEL.total)
+      if (fulfills.length === 0) continue
+      const hasConflict = item.slots.some(s => usedSlots.has(s))
+      if (hasConflict) continue
+
+      selected.push({ course: item.course, slots: item.slots })
+      selectedCodes.add(item.course.code)
+      item.slots.forEach(s => usedSlots.add(s))
+      reduceGaps(planGaps, item.course, majorTrack)
+    }
+
+    // Second pass: fill remaining total credit gap
+    if (planGaps.total > 0) {
+      for (const item of available) {
+        if (planGaps.total <= 0) break
+        if (selectedCodes.has(item.course.code)) continue
+        const hasConflict = item.slots.some(s => usedSlots.has(s))
+        if (hasConflict) continue
+
+        selected.push({ course: item.course, slots: item.slots })
+        selectedCodes.add(item.course.code)
+        item.slots.forEach(s => usedSlots.add(s))
+        planGaps.total = Math.max(0, planGaps.total - item.course.credits)
+      }
+    }
+
+    const remainingGaps = Object.values(planGaps).reduce((s, v) => s + Math.max(0, v), 0)
+    return { selected, remainingGaps, planGaps }
+  }, [semesterCatalog, semesterMultiSlots, gaps, takenCodes, majorTrack])
 
   return (
     <div className="flex flex-col gap-5">
@@ -238,6 +309,7 @@ export function AISimulator({ requirements, courses }: AISimulatorProps) {
           catalog={semesterCatalog ?? undefined}
           wantedCodes={wantedCodes.size > 0 ? wantedCodes : undefined}
           semesterScheduleData={semesterScheduleMap}
+          semesterMultiSlots={semesterMultiSlots}
         />
       )}
 
@@ -365,6 +437,90 @@ export function AISimulator({ requirements, courses }: AISimulatorProps) {
                 )
               })}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ===== 完璧な履修提案（スケジュール重複なし） ===== */}
+      {conflictFreePlan && conflictFreePlan.selected.length > 0 && tab === "plan" && (
+        <Card className="py-4 border-success/30 bg-success/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-success" />
+              完璧な履修提案
+              <Badge variant="secondary" className="text-[10px]">
+                {conflictFreePlan.selected.length} 科目 · 重複なし
+              </Badge>
+            </CardTitle>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              学期リストの中から、卒業要件を最大限満たし、かつ時間割が重ならない組み合わせ
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="pb-2 text-left font-medium text-muted-foreground">コード</th>
+                    <th className="pb-2 text-left font-medium text-muted-foreground">科目名</th>
+                    <th className="pb-2 text-center font-medium text-muted-foreground">単位</th>
+                    <th className="pb-2 text-left font-medium text-muted-foreground">時間割</th>
+                    <th className="pb-2 text-left font-medium text-muted-foreground">満たす要件</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {conflictFreePlan.selected.map(({ course: c, slots }) => {
+                    const DAYS_LABEL = ["月", "火", "水", "木", "金"]
+                    const tags = courseFulfills(c, gaps, majorTrack).filter(f => f !== GAP_LABEL.total)
+                    return (
+                      <tr key={c.code} className="border-b border-border/50 last:border-0">
+                        <td className="py-2 pr-2 text-muted-foreground font-mono text-[10px]">{c.code}</td>
+                        <td className="py-2 pr-2 text-foreground font-medium">{c.name}</td>
+                        <td className="py-2 text-center">{c.credits}</td>
+                        <td className="py-2 pr-2">
+                          <div className="flex gap-1">
+                            {slots.map((s, i) => {
+                              const [d, p] = s.split("-").map(Number)
+                              return (
+                                <Badge key={i} variant="outline" className="text-[9px]">
+                                  {DAYS_LABEL[d]}{p + 1}限
+                                </Badge>
+                              )
+                            })}
+                          </div>
+                        </td>
+                        <td className="py-2">
+                          <div className="flex flex-wrap gap-1">
+                            {tags.map((f, i) => (
+                              <Badge key={i} variant="outline" className="text-[9px] bg-primary/10 text-primary border-primary/20">{f}</Badge>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {conflictFreePlan.remainingGaps > 0 && (
+              <p className="text-[11px] text-muted-foreground mt-3">
+                ※ この学期だけでは全要件を満たせません。残りの不足分は次学期以降で補ってください。
+              </p>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3 text-xs gap-1.5"
+              onClick={() => {
+                // Auto-fill wanted codes and switch to schedule tab
+                const codes = new Set(conflictFreePlan.selected.map(s => s.course.code))
+                setWantedCodes(codes)
+                setTab("schedule")
+              }}
+            >
+              <CalendarDays className="h-3.5 w-3.5" />
+              この提案を時間割に反映
+            </Button>
           </CardContent>
         </Card>
       )}

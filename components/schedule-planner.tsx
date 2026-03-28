@@ -17,6 +17,7 @@ interface SchedulePlannerProps {
   catalog?: CatalogCourse[]
   wantedCodes?: Set<string>
   semesterScheduleData?: Map<string, { day: number; period: number }>
+  semesterMultiSlots?: Map<string, { day: number; period: number }[]>
 }
 
 const DAYS = ["月", "火", "水", "木", "金"] as const
@@ -85,7 +86,7 @@ function parseBulkSchedule(text: string, catalog: CatalogCourse[]): ScheduleEntr
   return entries
 }
 
-export function SchedulePlanner({ requirements, takenCodes, catalog, wantedCodes, semesterScheduleData }: SchedulePlannerProps) {
+export function SchedulePlanner({ requirements, takenCodes, catalog, wantedCodes, semesterScheduleData, semesterMultiSlots }: SchedulePlannerProps) {
   const [entries, setEntries] = useState<ScheduleEntry[]>([])
   const [activeCell, setActiveCell] = useState<CellKey | null>(null)
   const [query, setQuery] = useState("")
@@ -187,6 +188,14 @@ export function SchedulePlanner({ requirements, takenCodes, catalog, wantedCodes
       if (placed.has(code) || takenCodes.has(code)) continue
       const course = pool.find(c => c.code === code)
       if (!course) continue
+      const multiSlots = semesterMultiSlots?.get(code)
+      if (multiSlots && multiSlots.length > 0) {
+        const cellSlots = multiSlots.map(s => `${s.day}-${s.period}` as CellKey)
+        newEntries.push({ course, slots: cellSlots })
+        cellSlots.forEach(s => usedCells.add(s))
+        placed.add(code)
+        continue
+      }
       const slotData = semesterScheduleData?.get(code)
       if (slotData) {
         const key: CellKey = `${slotData.day}-${slotData.period}`

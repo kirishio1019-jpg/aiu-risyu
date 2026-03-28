@@ -709,7 +709,7 @@ export function getHonors(gpa: number): string | null {
 // - EAP: EAP III (9単位) or Bridge (3単位) 修了
 // - Foundation: 27単位以上 (2025年度以降入学者。2024年度以前入学者は30単位)
 //   ※BRI150履修者は21単位以上
-// - CLA配分: SS 6 / HUM 6 / MAT 3 / NS 4 / JAS 6 / FL 6 / HPE 1
+// - CLA配分: SS 6 / HUM 6 / MAT 3 / NS 4 / JAS 6 / FL 6 / HPE 2 (講義1+実技1)
 // - Advanced Liberal Arts: 48単位以上
 // - Capstone: 3単位 (CPS490)
 // - Study Abroad Project: 3単位 (SAR390)
@@ -794,7 +794,7 @@ export function calculateRequirements(
       naturalSciences: { required: 4, earned: creditsFor("Natural Sciences") },
       foreignLanguages: { required: 6, earned: creditsFor("Foreign Languages") },
       japanStudies: { required: 6, earned: creditsFor("Japan Studies") },
-      healthPE: { required: 1, earned: creditsFor("Health & Physical Education") },
+      healthPE: { required: 2, earned: creditsFor("Health & Physical Education") },
     },
     majorTrack: { name: majorTrackName, required: 48, earned: majorCredits },
     capstone: { required: 3, earned: capstoneCredits, completed: capstoneCredits >= 3 },
