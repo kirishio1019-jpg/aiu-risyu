@@ -8,13 +8,13 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog"
 import type { GraduationRequirements, CourseRecord, GradPlanCourse, RequirementGaps, CatalogCourse } from "@/lib/academic-data"
-import { buildGradPlan, gapsFrom, GAP_LABEL, parseSemesterList } from "@/lib/academic-data"
+import { buildGradPlan, gapsFrom, reduceGaps, GAP_LABEL, parseSemesterList, AIU_COURSE_CATALOG } from "@/lib/academic-data"
 import { SchedulePlanner } from "@/components/schedule-planner"
 import { cn } from "@/lib/utils"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
-import { GraduationCap, CheckCircle2, AlertTriangle, Upload, X, ChevronDown, ChevronUp, CalendarDays, Sparkles, Star, ArrowUpDown } from "lucide-react"
+import { GraduationCap, CheckCircle2, AlertTriangle, TrendingUp, Upload, X, ChevronDown, ChevronUp, CalendarDays, Sparkles, Star, ArrowUpDown } from "lucide-react"
 import { useState, useMemo, useCallback } from "react"
 
 type SimTab = "plan" | "schedule"
@@ -50,6 +50,7 @@ export function AISimulator({ requirements, courses }: AISimulatorProps) {
   const [showAllCourses, setShowAllCourses] = useState(false)
   const [wantedCodes, setWantedCodes] = useState<Set<string>>(new Set())
   const [sortOption, setSortOption] = useState<SortOption>("min")
+  const [semesterScheduleMap, setSemesterScheduleMap] = useState<Map<string, { day: number; period: number }>>(new Map())
 
   const majorTrack = requirements.majorTrack.name
   const gaps = useMemo(() => gapsFrom(requirements), [requirements])
@@ -120,6 +121,36 @@ export function AISimulator({ requirements, courses }: AISimulatorProps) {
     const parsed = parseSemesterList(semesterText)
     if (parsed.length === 0) return
     setSemesterCatalog(parsed)
+
+    // Extract schedule data (day/period) from the text
+    const dayMap: Record<string, number> = { "月": 0, "火": 1, "水": 2, "木": 3, "金": 4, "Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "M": 0, "T": 1, "W": 2, "R": 3, "F": 4 }
+    const schedMap = new Map<string, { day: number; period: number }>()
+    const lines = semesterText.split("\n")
+    for (const line of lines) {
+      // Try to find course code in the line
+      const codeMatch = line.match(/([A-Z]{2,4}\d{2,4}[A-Z]?)/i)
+      if (!codeMatch) continue
+      const code = codeMatch[1].toUpperCase()
+
+      // Try to find day (月,火,水,木,金 or Mon,Tue,Wed,Thu,Fri or M,T,W,R,F)
+      let day = -1
+      for (const [key, val] of Object.entries(dayMap)) {
+        if (line.includes(key)) { day = val; break }
+      }
+
+      // Try to find period (1-5 or 1限-5限)
+      const periodMatch = line.match(/(\d)[限]?/)
+      let period = -1
+      if (periodMatch) {
+        const p = parseInt(periodMatch[1])
+        if (p >= 1 && p <= 5) period = p - 1
+      }
+
+      if (day >= 0 && period >= 0) {
+        schedMap.set(code, { day, period })
+      }
+    }
+    setSemesterScheduleMap(schedMap)
     setSemesterDialogOpen(false)
   }
 
@@ -144,6 +175,18 @@ export function AISimulator({ requirements, courses }: AISimulatorProps) {
   ]
 
   const unmetGaps = gapEntries.filter(g => gaps[g.key] > 0)
+
+  // Calculate impact of ★ courses on graduation requirements
+  const wantedImpact = useMemo(() => {
+    if (wantedCodes.size === 0) return null
+    const afterGaps = { ...gaps }
+    const allCatalog = semesterCatalog ?? AIU_COURSE_CATALOG
+    for (const code of wantedCodes) {
+      const course = allCatalog.find(c => c.code === code)
+      if (course) reduceGaps(afterGaps, course, majorTrack)
+    }
+    return afterGaps
+  }, [wantedCodes, gaps, majorTrack, semesterCatalog])
 
   return (
     <div className="flex flex-col gap-5">
@@ -181,6 +224,8 @@ export function AISimulator({ requirements, courses }: AISimulatorProps) {
           requirements={requirements}
           takenCodes={takenCodes}
           catalog={semesterCatalog ?? undefined}
+          wantedCodes={wantedCodes.size > 0 ? wantedCodes : undefined}
+          semesterScheduleData={semesterScheduleMap}
         />
       )}
 
@@ -269,6 +314,44 @@ export function AISimulator({ requirements, courses }: AISimulatorProps) {
             </CardContent>
           </Card>
         </>
+      )}
+
+      {/* ★ Wanted courses impact */}
+      {!allMet && wantedImpact && wantedCodes.size > 0 && tab === "plan" && (
+        <Card className="py-4 border-amber-500/20 bg-amber-500/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Star className="h-4 w-4 fill-amber-500 text-amber-500" />
+              ★科目を取った場合の変化
+              <Badge variant="secondary" className="text-[10px]">{wantedCodes.size} 科目</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {gapEntries.map(g => {
+                const before = gaps[g.key]
+                const after = wantedImpact[g.key]
+                if (before <= 0 && after <= 0) return null
+                const resolved = before > 0 && after <= 0
+                const improved = after < before
+                return (
+                  <div key={g.key} className="flex items-center gap-2 text-xs py-0.5">
+                    {resolved
+                      ? <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0" />
+                      : improved
+                        ? <TrendingUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                        : <AlertTriangle className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+                    }
+                    <span className={cn("flex-1", resolved ? "text-success" : "text-foreground")}>{g.label}</span>
+                    <span className="text-muted-foreground">
+                      {before} → <span className={cn("font-semibold", resolved ? "text-success" : improved ? "text-primary" : "")}>{after}</span>
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Minimum plan table */}
@@ -399,7 +482,7 @@ export function AISimulator({ requirements, courses }: AISimulatorProps) {
             <Textarea
               value={semesterText}
               onChange={e => setSemesterText(e.target.value)}
-              placeholder={"科目コードや科目名を1行ずつ貼り付けてください\n\n例:\nECN210 Principles of Microeconomics\nECN230\nSOC150 Sociology\nMAT200 Statistics\nPLS150\nHIS110\nJAS200"}
+              placeholder={"科目コードや科目名を1行ずつ貼り付けてください\n曜日・時限があればスケジュールに自動反映されます\n\n例:\nECN210 Principles of Microeconomics 月2限\nECN230 火3\nSOC150 Sociology Wed 1\nMAT200 Statistics 木4限\nPLS150 金2\nHIS110\nJAS200"}
               className="min-h-[200px] font-mono text-xs"
             />
             <div className="flex items-center gap-3">

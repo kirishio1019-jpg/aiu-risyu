@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { X, Plus, Search, CheckCircle2, AlertTriangle, TrendingUp } from "lucide-react"
+import { X, Plus, Search, CheckCircle2, AlertTriangle, TrendingUp, Star } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { GraduationRequirements, CatalogCourse, TrackType, RequirementGaps } from "@/lib/academic-data"
 import { AIU_COURSE_CATALOG, gapsFrom, reduceGaps, courseFulfills, GAP_LABEL } from "@/lib/academic-data"
@@ -14,6 +14,8 @@ interface SchedulePlannerProps {
   requirements: GraduationRequirements
   takenCodes: Set<string>
   catalog?: CatalogCourse[]
+  wantedCodes?: Set<string>
+  semesterScheduleData?: Map<string, { day: number; period: number }>
 }
 
 const DAYS = ["月", "火", "水", "木", "金"] as const
@@ -42,12 +44,55 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 type CellKey = `${number}-${number}`
 
-export function SchedulePlanner({ requirements, takenCodes, catalog }: SchedulePlannerProps) {
+export function SchedulePlanner({ requirements, takenCodes, catalog, wantedCodes, semesterScheduleData }: SchedulePlannerProps) {
   const [schedule, setSchedule] = useState<Map<CellKey, CatalogCourse>>(new Map())
   const [activeCell, setActiveCell] = useState<CellKey | null>(null)
   const [query, setQuery] = useState("")
   const searchRef = useRef<HTMLInputElement>(null)
   const majorTrack = requirements.majorTrack.name
+
+  // Auto-fill ★ courses into schedule
+  const autoFillWanted = useCallback(() => {
+    if (!wantedCodes || wantedCodes.size === 0) return
+    const allCourses = catalog ?? AIU_COURSE_CATALOG
+    const newSchedule = new Map(schedule)
+    const usedCells = new Set(Array.from(newSchedule.keys()))
+    const placedCodes = new Set<string>()
+    newSchedule.forEach(c => placedCodes.add(c.code))
+
+    for (const code of wantedCodes) {
+      if (placedCodes.has(code) || takenCodes.has(code)) continue
+      const course = allCourses.find(c => c.code === code)
+      if (!course) continue
+
+      // Check if semesterScheduleData has a slot for this course
+      const slotData = semesterScheduleData?.get(code)
+      if (slotData) {
+        const key: CellKey = `${slotData.day}-${slotData.period}`
+        if (!usedCells.has(key)) {
+          newSchedule.set(key, course)
+          usedCells.add(key)
+          placedCodes.add(code)
+          continue
+        }
+      }
+
+      // Find first empty cell
+      let placed = false
+      for (let pi = 0; pi < PERIODS.length && !placed; pi++) {
+        for (let di = 0; di < DAYS.length && !placed; di++) {
+          const key: CellKey = `${di}-${pi}`
+          if (!usedCells.has(key)) {
+            newSchedule.set(key, course)
+            usedCells.add(key)
+            placedCodes.add(code)
+            placed = true
+          }
+        }
+      }
+    }
+    setSchedule(newSchedule)
+  }, [wantedCodes, schedule, takenCodes, catalog, semesterScheduleData])
 
   const pool = catalog ?? AIU_COURSE_CATALOG
   const scheduledCodes = useMemo(() => {
@@ -157,11 +202,18 @@ export function SchedulePlanner({ requirements, takenCodes, catalog }: ScheduleP
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm">週間スケジュール</CardTitle>
-            {schedule.size > 0 && (
-              <Button variant="ghost" size="sm" onClick={clearAll} className="text-xs text-destructive gap-1">
-                <X className="h-3 w-3" /> クリア
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {wantedCodes && wantedCodes.size > 0 && (
+                <Button variant="outline" size="sm" onClick={autoFillWanted} className="text-xs gap-1">
+                  <Star className="h-3 w-3 fill-amber-500 text-amber-500" /> ★科目を自動配置
+                </Button>
+              )}
+              {schedule.size > 0 && (
+                <Button variant="ghost" size="sm" onClick={clearAll} className="text-xs text-destructive gap-1">
+                  <X className="h-3 w-3" /> クリア
+                </Button>
+              )}
+            </div>
           </div>
           <p className="text-[10px] text-muted-foreground">空きコマをクリックして科目を追加。埋まったコマをクリックで削除。</p>
         </CardHeader>
