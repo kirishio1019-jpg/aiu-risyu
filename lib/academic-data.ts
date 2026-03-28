@@ -520,13 +520,13 @@ export const AIU_COURSE_CATALOG: CatalogCourse[] = [
   { code: "MAT340", name: "Topics in Mathematics", credits: 3, category: "Mathematics", track: null, cluster: null },
   { code: "INF260", name: "Information Science", credits: 3, category: "Mathematics", track: null, cluster: null },
 
-  // ─── Natural Sciences (CLA: NS) ─── Min 4 credits (lecture 3 + lab 1)
-  { code: "BIO100", name: "Introduction to Biology", credits: 3, category: "Natural Sciences", track: null, cluster: null },
+  // ─── Natural Sciences (CLA: NS) ─── Min 4 credits (lecture 2 + lab 1)
+  { code: "BIO100", name: "Introduction to Biology", credits: 2, category: "Natural Sciences", track: null, cluster: null },
   { code: "BIO105", name: "Biology Laboratory", credits: 1, category: "Natural Sciences", track: null, cluster: null },
   { code: "BIO205", name: "Science Research Project", credits: 3, category: "Natural Sciences", track: null, cluster: null },
-  { code: "CHM100", name: "Introduction to Chemistry", credits: 3, category: "Natural Sciences", track: null, cluster: null },
+  { code: "CHM100", name: "Introduction to Chemistry", credits: 2, category: "Natural Sciences", track: null, cluster: null },
   { code: "CHM105", name: "Chemistry Laboratory", credits: 1, category: "Natural Sciences", track: null, cluster: null },
-  { code: "PHY100", name: "Introduction to Physics", credits: 3, category: "Natural Sciences", track: null, cluster: null },
+  { code: "PHY100", name: "Introduction to Physics", credits: 2, category: "Natural Sciences", track: null, cluster: null },
   { code: "PHY105", name: "Physics Laboratory", credits: 1, category: "Natural Sciences", track: null, cluster: null },
 
   // ─── Foreign Languages (CLA: FL) ─── Min 6 credits (同一言語 2レベル以上)
@@ -670,6 +670,7 @@ export const AIU_COURSE_CATALOG: CatalogCourse[] = [
   { code: "ECN392", name: "Management Information Systems", credits: 3, category: "Major", track: "Global Business", cluster: "BUS" },
   { code: "ECN395", name: "International Political Economy", credits: 3, category: "Major", track: "Global Business", cluster: "ECN" },
   { code: "ECN401", name: "Global Business Capstone Seminar", credits: 3, category: "Capstone", track: "Global Business", cluster: null },
+  { code: "GBS303", name: "GBS303", credits: 1, category: "Major", track: "Global Business", cluster: "BUS" },
 
   // ─── Global Studies (GS) Advanced Liberal Arts ───
   { code: "ANT300", name: "Social Anthropology", credits: 3, category: "Major", track: "Global Studies", cluster: "GLS" },
@@ -755,6 +756,7 @@ export const AIU_COURSE_CATALOG: CatalogCourse[] = [
   { code: "GSS491", name: "Seminar in North American Studies", credits: 4, category: "Capstone", track: "Global Studies", cluster: null },
   { code: "GSS492", name: "Seminar in East Asia Studies", credits: 4, category: "Capstone", track: "Global Studies", cluster: null },
   { code: "GSS493", name: "Seminar in Transnational Studies", credits: 4, category: "Capstone", track: "Global Studies", cluster: null },
+  { code: "GSS322", name: "GSS322", credits: 1, category: "Major", track: "Global Studies", cluster: "GLS" },
 
   // ─── AILA III & IV (2021 Curriculum) ───
   { code: "SAR390", name: "Study Abroad Reflection (AILA III)", credits: 3, category: "Study Abroad", track: null, cluster: null },
