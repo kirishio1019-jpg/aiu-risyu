@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useCallback, useRef, type DragEvent } from "react"
-import { SignIn, SignedIn, SignedOut, useAuth } from "@clerk/nextjs"
+import { SignIn, SignedIn, SignedOut, UserButton } from "@clerk/nextjs"
 import { GraduationCap } from "lucide-react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { DashboardOverview } from "@/components/dashboard-overview"
@@ -245,6 +245,14 @@ export default function AcademicDashboard() {
               <Trash2 className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">リセット</span>
             </Button>
+            <UserButton
+              afterSignOutUrl="/"
+              appearance={{
+                elements: {
+                  avatarBox: "h-8 w-8",
+                },
+              }}
+            />
           </div>
         </header>
 
